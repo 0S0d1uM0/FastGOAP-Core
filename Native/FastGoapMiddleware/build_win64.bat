@@ -39,7 +39,7 @@ if errorlevel 1 (
 
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
-cl /nologo /std:c++17 /utf-8 /O2 /EHsc /DFASTGOAP_EXPORTS /LD ^
+cl /nologo /std:c++20 /utf-8 /O2 /EHsc /DFASTGOAP_EXPORTS /LD ^
   "%ROOT%src\FastGoapMiddleware.cpp" ^
   "%ROOT%src\FastGoapPlanner.cpp" ^
   "%ROOT%src\FastGoapRuntime.cpp" ^

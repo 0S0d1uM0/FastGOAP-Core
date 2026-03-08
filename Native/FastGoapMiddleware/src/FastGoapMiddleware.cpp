@@ -4,6 +4,7 @@
 
 using fastgoap::Context;
 
+// 实现FastGoapMiddleware的C接口，负责管理Context生命周期、处理图上传、请求提交和结果轮询等桥接功能
 FASTGOAP_API int FASTGOAP_CALL Goap_CreateContext(const GoapNativeConfig* config, uint64_t* outContext)
 {
     if (config == nullptr || outContext == nullptr)
@@ -32,6 +33,7 @@ FASTGOAP_API int FASTGOAP_CALL Goap_CreateContext(const GoapNativeConfig* config
     return fastgoap::kOk;
 }
 
+// 销毁Context并停止工作线程
 FASTGOAP_API int FASTGOAP_CALL Goap_DestroyContext(uint64_t context)
 {
     std::unique_ptr<Context> ctx = fastgoap::UnregisterContext(context);
@@ -42,6 +44,7 @@ FASTGOAP_API int FASTGOAP_CALL Goap_DestroyContext(uint64_t context)
     return fastgoap::kOk;
 }
 
+// 上传图数据，包括动作规则和目标规则
 FASTGOAP_API int FASTGOAP_CALL Goap_UploadGraph(
     uint64_t context,
     const GoapNativeGraphHeader* header,
@@ -87,6 +90,7 @@ FASTGOAP_API int FASTGOAP_CALL Goap_UploadGraph(
     return fastgoap::kOk;
 }
 
+// 提交规划请求，工作线程会异步处理并将结果放入结果队列
 FASTGOAP_API int FASTGOAP_CALL Goap_SubmitRequestsV1(uint64_t context, const GoapPlanRequest* requests, int count)
 {
     Context* ctx = fastgoap::GetContext(context);
@@ -130,6 +134,7 @@ FASTGOAP_API int FASTGOAP_CALL Goap_SubmitRequestsV1(uint64_t context, const Goa
     return fastgoap::kOk;
 }
 
+// 轮询结果队列，返回已完成的规划结果
 FASTGOAP_API int FASTGOAP_CALL Goap_PollResultsV1(uint64_t context, GoapPlanResult* results, int maxCount)
 {
     Context* ctx = fastgoap::GetContext(context);
@@ -152,6 +157,7 @@ FASTGOAP_API int FASTGOAP_CALL Goap_PollResultsV1(uint64_t context, GoapPlanResu
     return written;
 }
 
+// 获取最后一次错误信息，返回字符串指针，如果没有错误则返回空
 FASTGOAP_API const char* FASTGOAP_CALL Goap_GetLastError(uint64_t context)
 {
     Context* ctx = fastgoap::GetContext(context);
@@ -162,7 +168,7 @@ FASTGOAP_API const char* FASTGOAP_CALL Goap_GetLastError(uint64_t context)
     return ctx->LastError.c_str();
 }
 
-// 兼容旧版入口：暂时保持可调用，方便老桥接逐步迁移。
+// 兼容旧版入口：暂时保持可调用，方便老桥接逐步迁移
 FASTGOAP_API int FASTGOAP_CALL Goap_Init(const GoapNativeConfig* /*unused*/)
 {
     return fastgoap::kOk;

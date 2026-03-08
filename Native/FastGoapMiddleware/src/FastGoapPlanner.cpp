@@ -1,5 +1,5 @@
 #include "FastGoapPlanner.h"
-
+#include <bit>
 #include <algorithm>
 #include <array>
 #include <limits>
@@ -8,17 +8,12 @@
 namespace
 {
 
-int CountBits(uint64_t bits)
-{
-    int c = 0;
-    while (bits != 0)
-    {
-        bits &= (bits - 1);
-        ++c;
-    }
-    return c;
+// 神奇的C++20内置函数，能在常数时间内计算出一个64位整数中有多少位是1，效率远超传统的循环计数方法
+int CountBits(uint64_t bits) {
+    return std::popcount(bits); 
 }
 
+// 启发式函数，简单地计算当前状态与目标状态之间的差距，作为A*搜索的评估函数
 float Heuristic(uint64_t bits, uint64_t goalTrue, uint64_t goalFalse)
 {
     const uint64_t missTrue = goalTrue & (~bits);
@@ -26,43 +21,40 @@ float Heuristic(uint64_t bits, uint64_t goalTrue, uint64_t goalFalse)
     return static_cast<float>(CountBits(missTrue) + CountBits(missFalse));
 }
 
+// 判断当前状态是否满足目标条件
 bool IsGoalState(uint64_t bits, uint64_t goalTrue, uint64_t goalFalse)
 {
     return (bits & goalTrue) == goalTrue && (bits & goalFalse) == 0;
 }
 
+// 判断一个动作的前置条件是否满足当前状态
 bool PreconditionsMet(uint64_t bits, const GoapNativeActionRule& action)
 {
     return (bits & action.RequireTrueBits) == action.RequireTrueBits && (bits & action.RequireFalseBits) == 0;
 }
 
+// 将一个动作的效果应用到当前状态，得到下一个状态
 uint64_t ApplyEffects(uint64_t bits, const GoapNativeActionRule& action)
 {
     return (bits | action.SetBits) & (~action.ClearBits);
 }
 
+// 换了一种无Switch（C++力大砖飞指针成员数组）的方式来设置GoapPlanResult中的ActionId字段，应该能快上不少
 void SetResultAction(GoapPlanResult& r, int index, uint16_t value)
 {
-    switch (index)
-    {
-    case 0: r.ActionId0 = value; break;
-    case 1: r.ActionId1 = value; break;
-    case 2: r.ActionId2 = value; break;
-    case 3: r.ActionId3 = value; break;
-    case 4: r.ActionId4 = value; break;
-    case 5: r.ActionId5 = value; break;
-    case 6: r.ActionId6 = value; break;
-    case 7: r.ActionId7 = value; break;
-    case 8: r.ActionId8 = value; break;
-    case 9: r.ActionId9 = value; break;
-    case 10: r.ActionId10 = value; break;
-    case 11: r.ActionId11 = value; break;
-    case 12: r.ActionId12 = value; break;
-    case 13: r.ActionId13 = value; break;
-    case 14: r.ActionId14 = value; break;
-    case 15: r.ActionId15 = value; break;
-    default: break;
-    }
+    static constexpr uint16_t GoapPlanResult::* kFields[16] = {
+        &GoapPlanResult::ActionId0, &GoapPlanResult::ActionId1,
+        &GoapPlanResult::ActionId2, &GoapPlanResult::ActionId3,
+        &GoapPlanResult::ActionId4, &GoapPlanResult::ActionId5,
+        &GoapPlanResult::ActionId6, &GoapPlanResult::ActionId7,
+        &GoapPlanResult::ActionId8, &GoapPlanResult::ActionId9,
+        &GoapPlanResult::ActionId10, &GoapPlanResult::ActionId11,
+        &GoapPlanResult::ActionId12, &GoapPlanResult::ActionId13,
+        &GoapPlanResult::ActionId14, &GoapPlanResult::ActionId15
+    };
+
+    if (index < 0 || index >= 16) return;
+    r.*kFields[index] = value;
 }
 
 } // namespace
@@ -70,11 +62,13 @@ void SetResultAction(GoapPlanResult& r, int index, uint16_t value)
 namespace fastgoap
 {
 
+// 使用A*算法在状态空间中搜索满足目标条件的动作序列
 GoapPlanResult SolveOne(
     const GoapNativeConfig& cfg,
     const std::vector<GoapNativeActionRule>& actions,
     const std::vector<GoalRule>& goals,
-    const GoapPlanRequest& req)
+    const GoapPlanRequest& req,
+    PlannerWorkingBuffer& workingBuffer)
 {
     GoapPlanResult out{};
     out.AgentId = req.AgentId;
@@ -132,21 +126,13 @@ GoapPlanResult SolveOne(
     const int maxStates = static_cast<int>(std::max<uint32_t>(16, std::min<uint32_t>(cfg.SearchMaxStates, 256)));
     const int maxExpansions = static_cast<int>(std::max<uint32_t>(8, std::min<uint32_t>(cfg.SearchMaxExpansions, 4096)));
 
-    struct Node
-    {
-        uint64_t Bits = 0;
-        float G = 0;
-        float F = 0;
-        int Parent = -1;
-        int16_t Action = -1;
-        bool Open = false;
-        bool Closed = false;
-    };
+    // 使用workingBuffer来完全优化内存分配，避免在搜索过程中频繁分配和释放内存
+    std::vector<PlannerNode>& nodes = workingBuffer.Nodes;
+    nodes.clear();
+    if (nodes.capacity() < static_cast<size_t>(maxStates))
+        nodes.reserve(static_cast<size_t>(maxStates));
 
-    std::vector<Node> nodes;
-    nodes.reserve(static_cast<size_t>(maxStates));
-
-    Node start;
+    PlannerNode start;
     start.Bits = req.WorldStateBits;
     start.G = 0.0f;
     start.F = Heuristic(start.Bits, goal->RequireTrueBits, goal->RequireFalseBits);
@@ -157,7 +143,7 @@ GoapPlanResult SolveOne(
 
     int goalIdx = IsGoalState(start.Bits, goal->RequireTrueBits, goal->RequireFalseBits) ? 0 : -1;
 
-    // 简化 A*：为了可预测的开销，直接线性扫描 open 集合而不引入更重的数据结构，后面再考虑增加一个优先队列来优化
+    // 为了可预测的开销，直接线性扫描 open 集合而不引入更重的数据结构，后面再考虑增加一个优先队列来优化
     for (int expansion = 0; expansion < maxExpansions; ++expansion)
     {
         int current = -1;
@@ -215,7 +201,7 @@ GoapPlanResult SolveOne(
                 if (static_cast<int>(nodes.size()) >= maxStates)
                     continue;
 
-                Node n;
+                PlannerNode n;
                 n.Bits = nextBits;
                 n.G = tentativeG;
                 n.F = tentativeG + Heuristic(nextBits, goal->RequireTrueBits, goal->RequireFalseBits);

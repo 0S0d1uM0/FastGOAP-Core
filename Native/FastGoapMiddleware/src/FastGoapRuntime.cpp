@@ -6,6 +6,7 @@
 namespace
 {
 
+// 根据配置自动决定工作线程数量，默认为CPU核心数减一，至少保留一个线程用于主线程调度
 uint32_t ResolveWorkerCount(const GoapNativeConfig& cfg)
 {
     if (cfg.WorkerThreads > 0)
@@ -15,8 +16,11 @@ uint32_t ResolveWorkerCount(const GoapNativeConfig& cfg)
     return std::max(1u, hw > 1 ? hw - 1 : 1u);
 }
 
+// 工作线程主循环，等待请求并调用规划函数处理，最后将结果丢入结果队列
 void WorkerLoop(fastgoap::Context* ctx)
 {
+    fastgoap::PlannerWorkingBuffer workingBuffer;
+
     for (;;)
     {
         GoapPlanRequest req{};
@@ -44,7 +48,7 @@ void WorkerLoop(fastgoap::Context* ctx)
         GoapPlanResult result{};
         try
         {
-            result = fastgoap::SolveOne(cfg, actions, goals, req);
+            result = fastgoap::SolveOne(cfg, actions, goals, req, workingBuffer);
         }
         catch (...)
         {

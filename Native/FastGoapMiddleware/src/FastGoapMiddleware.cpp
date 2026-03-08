@@ -4,7 +4,7 @@
 
 using fastgoap::Context;
 
-// 实现FastGoapMiddleware的C接口，负责管理Context生命周期、处理图上传、请求提交和结果轮询等桥接功能
+// FastGoapMiddleware的C接口，负责管理Context生命周期、处理图上传、请求提交和结果轮询等桥接功能
 FASTGOAP_API int FASTGOAP_CALL Goap_CreateContext(const GoapNativeConfig* config, uint64_t* outContext)
 {
     if (config == nullptr || outContext == nullptr)
@@ -13,6 +13,7 @@ FASTGOAP_API int FASTGOAP_CALL Goap_CreateContext(const GoapNativeConfig* config
     if (config->Version != 1)
         return fastgoap::kInvalidArg;
 
+    // 自动指针管理Context生命周期
     auto ctx = std::make_unique<Context>();
     ctx->Config = *config;
     ctx->GraphUploaded = false;

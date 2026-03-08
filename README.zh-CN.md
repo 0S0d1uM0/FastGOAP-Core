@@ -22,7 +22,9 @@ FastGOAP-Core 将 GOAP 规划从具体引擎逻辑中解耦，提供可复用的
 ## 当前功能
 
 - 原生 C++ 规划核心：
-  - `Native/FastGoapMiddleware/src/FastGoapMiddleware.cpp`
+  - `Native/FastGoapMiddleware/src/FastGoapMiddleware.cpp`（C ABI 导出层）
+  - `Native/FastGoapMiddleware/src/FastGoapPlanner.cpp`（规划求解器）
+  - `Native/FastGoapMiddleware/src/FastGoapRuntime.cpp`（上下文与工作线程运行时）
 - C ABI v1 上下文流程：
   - 创建上下文
   - 上传图数据
@@ -58,6 +60,11 @@ FastGOAP-Core/
   Native/
     FastGoapMiddleware/
       src/FastGoapMiddleware.cpp
+      src/FastGoapMiddlewareTypes.h
+      src/FastGoapPlanner.h
+      src/FastGoapPlanner.cpp
+      src/FastGoapRuntime.h
+      src/FastGoapRuntime.cpp
       CMakeLists.txt
       build_win64.bat
       build/

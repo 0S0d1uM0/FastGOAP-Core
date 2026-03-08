@@ -6,8 +6,8 @@ using Unity.Mathematics;
 namespace SeventhSequence.ECS.GOAP
 {
     /// <summary>
-    /// 纯 C# 的中间件运行时，用于先验证调度、预算和容错流程。
-    /// 行为是非阻塞的：每帧只处理固定数量请求。
+    /// 纯 C# 的中间件运行时，用于先验证调度、预算和容错流程
+    /// 行为是非阻塞的：每帧只处理固定数量请求
     /// </summary>
     public static class GoapManagedRuntime
     {
@@ -23,7 +23,7 @@ namespace SeventhSequence.ECS.GOAP
         private static int s_MaxExpansions = 64;
         private static int s_MaxStates = 96;
 
-        // 这些缓冲区用于单次求解，避免每帧频繁分配。
+        // 这些缓冲区用于单次求解，避免每帧频繁分配
         private static ulong[] s_StateBits = new ulong[256];
         private static float[] s_GCost = new float[256];
         private static float[] s_FCost = new float[256];
@@ -74,7 +74,7 @@ namespace SeventhSequence.ECS.GOAP
                     if (!TryKeyIdToBit(cond.ConditionId, out int bit))
                         continue;
 
-                    // 这里只编码布尔语义：true/false。
+                    // 这里只编码布尔语义：true/false
                     if (IsTrueRequirement(cond.Comparison, cond.Value))
                         reqTrue |= 1UL << bit;
                     else if (IsFalseRequirement(cond.Comparison, cond.Value))
@@ -139,7 +139,7 @@ namespace SeventhSequence.ECS.GOAP
 
         public static bool Submit(in GoapPlanRequest request)
         {
-            // 固定容量策略：满了就拒绝，避免无限增长导致主线程风险。
+            // 固定容量策略：满了就拒绝，避免无限增长导致主线程风险
             if (s_RequestQueue.Count >= 8192)
                 return false;
 

@@ -22,7 +22,9 @@ FastGOAP-Core decouples GOAP planning from engine-specific runtime code and expo
 ## Current Features
 
 - Native C++ planner core:
-	- `Native/FastGoapMiddleware/src/FastGoapMiddleware.cpp`
+	- `Native/FastGoapMiddleware/src/FastGoapMiddleware.cpp` (C ABI exports)
+	- `Native/FastGoapMiddleware/src/FastGoapPlanner.cpp` (planning solver)
+	- `Native/FastGoapMiddleware/src/FastGoapRuntime.cpp` (context/worker runtime)
 - C ABI v1 context workflow:
 	- create context
 	- upload graph
@@ -58,6 +60,11 @@ FastGOAP-Core/
 	Native/
 		FastGoapMiddleware/
 			src/FastGoapMiddleware.cpp
+			src/FastGoapMiddlewareTypes.h
+			src/FastGoapPlanner.h
+			src/FastGoapPlanner.cpp
+			src/FastGoapRuntime.h
+			src/FastGoapRuntime.cpp
 			CMakeLists.txt
 			build_win64.bat
 			build/

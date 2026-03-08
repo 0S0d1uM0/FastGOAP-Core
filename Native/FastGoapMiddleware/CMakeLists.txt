@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(FastGoapMiddleware SHARED
     src/FastGoapMiddleware.cpp
+    src/FastGoapPlanner.cpp
+    src/FastGoapRuntime.cpp
 )
 
 target_compile_definitions(FastGoapMiddleware PRIVATE FASTGOAP_EXPORTS)

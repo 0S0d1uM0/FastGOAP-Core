@@ -82,7 +82,7 @@ GoapPlanResult SolveOne(
     out.Status = GoapPlanStatus_NoPlan;
     out.StepCount = 0;
 
-    // 当图数据不可用或目标缺失时，尽量返回一个可执行的单步动作，避免上层卡死。
+    // 当图数据不可用或目标缺失时，尽量返回一个可执行的单步动作，避免上层卡死
     auto applySingleStepFallback = [&out, &req]() -> bool
     {
         int chosen = -1;
@@ -157,7 +157,7 @@ GoapPlanResult SolveOne(
 
     int goalIdx = IsGoalState(start.Bits, goal->RequireTrueBits, goal->RequireFalseBits) ? 0 : -1;
 
-    // 简化 A*：为了可预测的开销，直接线性扫描 open 集合而不引入更重的数据结构。
+    // 简化 A*：为了可预测的开销，直接线性扫描 open 集合而不引入更重的数据结构，后面再考虑增加一个优先队列来优化
     for (int expansion = 0; expansion < maxExpansions; ++expansion)
     {
         int current = -1;
@@ -256,7 +256,7 @@ GoapPlanResult SolveOne(
 
     if (stepCount <= 0)
     {
-        // 起始状态已满足目标时，也返回一个稳定可预测的执行步，便于调度层处理。
+        // 起始状态已满足目标时，也返回一个稳定可预测的执行步，便于调度层处理
         applySingleStepFallback();
         return out;
     }

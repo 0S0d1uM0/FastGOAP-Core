@@ -142,6 +142,12 @@ cmake --build build --config Release
 
 新增引擎时，通常只需要新增桥接层，规划核心可以复用。
 
+## 致谢
+
+本项目在架构设计上参考并学习了 CrashKonijn 的 GOAP 框架思路。
+
+- CrashKonijn GOAP: https://github.com/crashkonijn/GOAP
+
 ## 当前状态与路线图
 
 当前状态：

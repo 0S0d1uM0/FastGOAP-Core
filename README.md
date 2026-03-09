@@ -142,6 +142,12 @@ This split keeps responsibilities clear:
 
 Adding support for a new engine usually means adding a new bridge adapter while reusing the same planner core.
 
+## Acknowledgements
+
+This project references and learns from the architecture and design ideas of CrashKonijn's GOAP framework.
+
+- CrashKonijn GOAP: https://github.com/crashkonijn/GOAP
+
 ## Status and Roadmap
 
 Current status:

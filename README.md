@@ -2,7 +2,7 @@
 
 [中文文档](./README.zh-CN.md)
 
-A universal GOAP planner middleware with a native C++ core and bridge adapters for game engines (Unity adapter available now).
+A universal, lightweight GOAP planner middleware with a native C++ core and bridge adapters for game engines (Unity adapter available now).
 
 ## Overview
 

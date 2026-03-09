@@ -2,7 +2,7 @@
 
 [English](./README.md)
 
-一个通用 GOAP 规划中间件：核心为原生 C++ Planner，通过桥接层接入不同引擎（当前已适配 Unity）。
+一个轻量的通用 GOAP 规划中间件：核心为原生 C++ Planner，可通过桥接层接入不同引擎（当前已适配 Unity）。
 
 ## 项目概述
 

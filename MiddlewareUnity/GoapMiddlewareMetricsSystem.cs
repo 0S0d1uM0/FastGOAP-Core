@@ -6,7 +6,8 @@ using Unity.Collections;
 namespace SeventhSequence.ECS.GOAP
 {
     /// <summary>
-    /// 按固定间隔输出中间件累计统计，便于压测观测稳定性
+    /// 按固定间隔输出中间件累计统计
+    /// 用于压测时观测稳定性
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(GoapMiddlewareSchedulerSystem))]

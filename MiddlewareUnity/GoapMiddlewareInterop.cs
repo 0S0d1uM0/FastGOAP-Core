@@ -13,7 +13,7 @@ namespace SeventhSequence.ECS.GOAP
 
     /// <summary>
     /// 引擎无关的中间件初始化参数
-    /// 不依赖 Unity ECS 类型，供任何引擎桥接层复用
+    /// 不依赖 Unity ECS 类型 可被任意桥接层复用
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct GoapNativeConfig
@@ -29,7 +29,8 @@ namespace SeventhSequence.ECS.GOAP
     }
 
     /// <summary>
-    /// 静态图头信息用于将 Action/Goal 规则上传到原生中间件
+    /// 静态图头信息
+    /// 用于上传 Action 与 Goal 规则到原生中间件
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct GoapNativeGraphHeader
@@ -41,7 +42,7 @@ namespace SeventhSequence.ECS.GOAP
     }
 
     /// <summary>
-    /// 动作规则（位图语义）
+    /// 动作规则 位图语义
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct GoapNativeActionRule
@@ -56,7 +57,7 @@ namespace SeventhSequence.ECS.GOAP
     }
 
     /// <summary>
-    /// 目标规则（位图语义）
+    /// 目标规则 位图语义
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct GoapNativeGoalRule
@@ -68,8 +69,8 @@ namespace SeventhSequence.ECS.GOAP
     }
 
     /// <summary>
-    /// 给中间件的请求包
-    /// 使用顺序布局，便于未来切换到 C++ DLL
+    /// 发往中间件的请求包
+    /// 使用顺序布局 便于对接 C++ DLL
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct GoapPlanRequest
@@ -80,10 +81,10 @@ namespace SeventhSequence.ECS.GOAP
         public float PositionY;
         public float PositionZ;
 
-        // 64 位世界状态位图（可按需要扩展到 128/256 位）
+        // 64 位世界状态位图 可按需扩展到更高位宽
         public ulong WorldStateBits;
 
-        // 动作能力位图：1 表示启用/可执行bit i 对应 ActionIndex i
+        // 动作能力位图 1 表示启用或可执行 bit i 对应 ActionIndex i
         public ulong EnabledActionBits;
         public ulong ExecutableActionBits;
 
@@ -92,7 +93,7 @@ namespace SeventhSequence.ECS.GOAP
 
     /// <summary>
     /// 中间件返回包
-    /// 使用固定 16 槽动作 ID，避免热路径动态内存分配
+    /// 使用固定 16 槽动作 ID 以避免热路径动态分配
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct GoapPlanResult
@@ -168,15 +169,14 @@ namespace SeventhSequence.ECS.GOAP
     }
 
     /// <summary>
-    /// 预留的原生接口签名当前版本可先使用纯 C# 运行时
+    /// 原生接口签名声明
+    /// 当前版本可回退到纯 C# 运行时
     /// </summary>
     public static class GoapNativeInterop
     {
         private const string DllName = "FastGoapMiddleware";
 
-        // -----------------------------------------------------------------
-        // 旧版最小接口（用于向后兼容）
-        // -----------------------------------------------------------------
+        // 旧版最小接口区域 用于向后兼容
 
         [DllImport(DllName, EntryPoint = "Goap_Init", CallingConvention = CallingConvention.Cdecl)]
         public static extern int Init(ref GoapMiddlewareConfig config);
@@ -190,9 +190,7 @@ namespace SeventhSequence.ECS.GOAP
         [DllImport(DllName, EntryPoint = "Goap_Shutdown", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Shutdown();
 
-        // -----------------------------------------------------------------
-        // 引擎无关的 C ABI v1（推荐接入方式）
-        // -----------------------------------------------------------------
+        // 引擎无关 C ABI v1 接口区域 推荐接入方式
 
         [DllImport(DllName, EntryPoint = "Goap_CreateContext", CallingConvention = CallingConvention.Cdecl)]
         public static extern int CreateContext(ref GoapNativeConfig config, out ulong contextHandle);

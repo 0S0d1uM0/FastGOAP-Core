@@ -4,8 +4,9 @@ using UnityEngine;
 namespace SeventhSequence.ECS.GOAP.Authoring
 {
     /// <summary>
-    /// 场景配置入口：用于手动切换 GOAP 规划管线与中间件预算参数
-    /// 放置一个即可（建议仅保留一个实例）
+    /// 场景配置入口
+    /// 用于切换 GOAP 规划管线与中间件预算参数
+    /// 建议场景中仅保留一个实例
     /// </summary>
     public class GoapMiddlewareConfigAuthoring : MonoBehaviour
     {
@@ -34,8 +35,14 @@ namespace SeventhSequence.ECS.GOAP.Authoring
         public float MetricsLogIntervalSeconds = 2f;
     }
 
+    /// <summary>
+    /// Authoring 到 ECS 组件的烘焙器
+    /// </summary>
     public class GoapMiddlewareConfigBaker : Baker<GoapMiddlewareConfigAuthoring>
     {
+        /// <summary>
+        /// 将 Inspector 配置写入 GoapMiddlewareConfig 组件
+        /// </summary>
         public override void Bake(GoapMiddlewareConfigAuthoring authoring)
         {
             var entity = GetEntity(TransformUsageFlags.None);

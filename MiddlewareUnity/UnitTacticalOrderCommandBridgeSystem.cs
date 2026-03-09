@@ -5,6 +5,9 @@ using SeventhSequence.ECS.Components.Gameplay;
 
 namespace SeventhSequence.ECS.GOAP
 {
+    /// <summary>
+    /// 将战术指令与撤退状态桥接为单位移动命令
+    /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateBefore(typeof(SeventhSequence.ECS.Systems.Simulation.Command.UnitCommandDispatchSystem))]
     public partial struct UnitTacticalOrderCommandBridgeSystem : ISystem
@@ -38,6 +41,7 @@ namespace SeventhSequence.ECS.GOAP
                 bool retreatActive = _retreatStateLookup.HasComponent(entity) && _retreatStateLookup[entity].IsRetreatActive;
                 if (retreatActive)
                 {
+                    // 撤退态优先级高于普通战术指令
                     float3 retreatTarget = ComputeRetreatTarget(entity, transform.ValueRO.Position, 18f);
                     if (math.all(math.isfinite(retreatTarget)))
                     {
@@ -89,6 +93,7 @@ namespace SeventhSequence.ECS.GOAP
 
         private float3 ComputeRetreatTarget(Entity entity, float3 selfPos, float retreatDistance)
         {
+            // 根据最近威胁位置计算远离方向 生成撤退目标点
             selfPos = SanitizePosition(selfPos, float3.zero);
 
             if (_threatLookup.HasComponent(entity))
@@ -113,6 +118,7 @@ namespace SeventhSequence.ECS.GOAP
 
         private static float3 SanitizePosition(float3 value, float3 fallback)
         {
+            // 过滤 NaN 与 Infinity 防止无效位置进入命令队列
             return math.all(math.isfinite(value)) ? value : fallback;
         }
     }

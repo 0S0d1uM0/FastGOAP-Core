@@ -12,8 +12,8 @@ namespace SeventhSequence.ECS.GOAP
     }
 
     /// <summary>
-    /// 统一的中间件后端桥接层
-    /// 自动模式会优先尝试原生插件，失败后自动回退到托管实现
+    /// 中间件后端桥接层
+    /// 自动模式优先原生 不可用时回退托管实现
     /// </summary>
     public static class GoapMiddlewareBackend
     {
@@ -36,7 +36,7 @@ namespace SeventhSequence.ECS.GOAP
                 }
                 catch
                 {
-                    // 关闭阶段异常直接忽略，避免影响退出流程
+                    // 销毁阶段异常忽略以避免影响退出
                 }
             }
 
@@ -82,15 +82,15 @@ namespace SeventhSequence.ECS.GOAP
             }
             catch (DllNotFoundException)
             {
-                // 没找到原生插件
+                // 未找到原生插件
             }
             catch (EntryPointNotFoundException)
             {
-                // 找到了插件，但缺少 ABI v1 入口
+                // 原生插件缺少 ABI v1 入口
             }
             catch
             {
-                // 其他原生初始化异常统一回退到托管实现
+                // 原生初始化异常时回退到托管后端
             }
 
             if (config.BackendMode == GoapMiddlewareBackendMode.Native)
@@ -249,7 +249,7 @@ namespace SeventhSequence.ECS.GOAP
             if (!s_UseNative)
                 return GoapManagedRuntime.Process(maxProcessPerFrame);
 
-            // 原生后端在内部线程处理，这里不额外驱动
+            // 原生后端由内部线程推进 此处无需额外处理
             return 0;
         }
 
@@ -280,7 +280,7 @@ namespace SeventhSequence.ECS.GOAP
                 return;
             }
 
-            // 当前接口版本暂未开放原生队列深度
+            // 当前 ABI 版本未提供原生队列深度
             requestCount = 0;
             resultCount = 0;
         }

@@ -7,10 +7,8 @@ using SeventhSequence.ECS.Systems;
 namespace SeventhSequence.ECS.GOAP
 {
     /// <summary>
-    /// 中间件调度系统：
-    /// 1) 每帧最多提交 20 个单位到规划运行时；
-    /// 2) 每帧按预算处理请求；
-    /// 3) 非阻塞读取结果并回写计划
+    /// 中间件调度系统
+    /// 每帧提交请求 按预算处理 并非阻塞回写结果
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(GoapSensorSystem))]
@@ -125,7 +123,7 @@ namespace SeventhSequence.ECS.GOAP
                     " Rejected=" + submitRejected);
             }
 
-            // 中间件按固定预算处理请求，保证不会无限占用本帧时间
+            // 按固定预算处理请求 避免单帧耗时失控
             int processed = GoapMiddlewareBackend.Process(config.MaxProcessPerFrame);
             metrics.Processed += (ulong)processed;
 
@@ -268,7 +266,7 @@ namespace SeventhSequence.ECS.GOAP
                 if (!forceImmediateSubmit && now < middleware.ValueRO.NextAllowedSubmitTime)
                 {
                     double remaining = middleware.ValueRO.NextAllowedSubmitTime - now;
-                    // 模式切换或旧存档可能带来脏冷却值，这里做一次兜底修正
+                    // 模式切换或旧存档可能带来异常冷却值 这里执行兜底修正
                     if (!math.isfinite((float)remaining) || remaining > math.max(5f, config.ReplanIntervalSeconds * 4f))
                     {
                         middleware.ValueRW.NextAllowedSubmitTime = now;
@@ -291,7 +289,7 @@ namespace SeventhSequence.ECS.GOAP
 
                 if (winnerGoalId == -1)
                 {
-                    // 当前没有可追求目标，不提交请求，避免失败风暴
+                    // 当前无可追求目标 本帧不提交请求以避免失败风暴
                     middleware.ValueRW.NextAllowedSubmitTime = now + config.ReplanIntervalSeconds;
                     agent.ValueRW.NeedsPlanning = true;
                     noGoalAgents++;
@@ -302,7 +300,7 @@ namespace SeventhSequence.ECS.GOAP
                 ulong executableBits = BuildExecutableBits(actionFlags, graph.Nodes.Length);
                 if ((enabledBits | executableBits) == 0UL)
                 {
-                    // 当前动作集合不可用，不提交请求，等待状态变化后再重试
+                    // 当前动作集合不可用 本帧不提交请求 等待状态变化后重试
                     middleware.ValueRW.NextAllowedSubmitTime = now + config.FailureBackoffSeconds;
                     agent.ValueRW.NeedsPlanning = true;
                     noActionAgents++;
@@ -338,7 +336,7 @@ namespace SeventhSequence.ECS.GOAP
                 middleware.ValueRW.LastSubmitEnabledBits = req.EnabledActionBits;
                 middleware.ValueRW.LastSubmitExecutableBits = req.ExecutableActionBits;
 
-                // 交由中间件接管本次规划，先清掉标记，避免旧 Planner 重复计算
+                // 本次规划交由中间件接管 先清理标记以避免旧 Planner 重复计算
                 agent.ValueRW.NeedsPlanning = false;
                 submitted++;
             }
@@ -423,7 +421,7 @@ namespace SeventhSequence.ECS.GOAP
 
                 if (result.Status != GoapPlanStatus.Success || result.StepCount == 0)
                 {
-                    // 失败时快速回退，稍后重试
+                    // 失败后快速回退 并在稍后重试
                     agent.ValueRW.NeedsPlanning = true;
                     middleware.ValueRW.NextAllowedSubmitTime = now + math.max(config.FailureBackoffSeconds, config.ReplanIntervalSeconds * 0.5f);
                     failed++;
@@ -509,7 +507,7 @@ namespace SeventhSequence.ECS.GOAP
             if (state.RuntimeAgentId != 0)
                 return;
 
-            // 运行时 ID：Entity.Index + Entity.Version 组合，避免哈希碰撞
+            // 运行时 ID 由 Entity.Index 与 Entity.Version 组合 以降低碰撞风险
             state.RuntimeAgentId = ((uint)entity.Version << 20) | ((uint)entity.Index & 0x000FFFFFu);
             if (state.RuntimeAgentId == 0)
                 state.RuntimeAgentId = 1;

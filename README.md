@@ -78,6 +78,10 @@ FastGOAP-Core/
 4. C++ planner solves asynchronously and outputs fixed-layout `GoapPlanResult`.
 5. Unity polls results and writes plans back for execution systems.
 
+Architecture diagram:
+
+![FastGOAP architecture diagram](./goap_architecture.png)
+
 ## ABI v1 (Core API)
 
 Primary API endpoints:

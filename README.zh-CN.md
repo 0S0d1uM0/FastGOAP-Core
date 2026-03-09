@@ -78,6 +78,10 @@ FastGOAP-Core/
 4. C++ 规划器异步求解并输出定长 `GoapPlanResult`。
 5. Unity 轮询结果并回写计划，执行系统按计划驱动行为。
 
+架构示意图：
+
+![FastGOAP 架构示意图](./goap_architecture.png)
+
 ## ABI v1 核心接口
 
 主接口：

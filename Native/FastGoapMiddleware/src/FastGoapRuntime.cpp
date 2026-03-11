@@ -24,12 +24,11 @@ void WorkerLoop(fastgoap::Context* ctx)
     for (;;)
     {
         GoapPlanRequest req{};
-        std::vector<GoapNativeActionRule> actions;
-        std::vector<fastgoap::GoalRule> goals;
+        std::shared_ptr<const fastgoap::GraphData> graph;
         GoapNativeConfig cfg{};
 
         {
-            std::unique_lock<std::mutex> lock(ctx->Mutex);
+            std::unique_lock<std::mutex> lock(ctx->RequestMutex);
             ctx->RequestCv.wait(lock, [ctx]
             {
                 return ctx->StopWorkersFlag || !ctx->RequestQueue.empty();
@@ -40,15 +39,29 @@ void WorkerLoop(fastgoap::Context* ctx)
 
             req = ctx->RequestQueue.front();
             ctx->RequestQueue.pop();
-            actions = ctx->Actions;
-            goals = ctx->Goals;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(ctx->StateMutex);
+            graph = ctx->Graph;
             cfg = ctx->Config;
         }
 
         GoapPlanResult result{};
         try
         {
-            result = fastgoap::SolveOne(cfg, actions, goals, req, workingBuffer);
+            if (!graph)
+            {
+                result = {};
+                result.AgentId = req.AgentId;
+                result.Tick = req.Tick;
+                result.Status = GoapPlanStatus_InternalError;
+                result.StepCount = 0;
+            }
+            else
+            {
+                result = fastgoap::SolveOne(cfg, graph->Actions, graph->Goals, req, workingBuffer);
+            }
         }
         catch (...)
         {
@@ -60,7 +73,7 @@ void WorkerLoop(fastgoap::Context* ctx)
         }
 
         {
-            std::lock_guard<std::mutex> lock(ctx->Mutex);
+            std::lock_guard<std::mutex> lock(ctx->ResultMutex);
             ctx->ResultQueue.push(result);
         }
     }
@@ -105,8 +118,17 @@ std::unique_ptr<Context> UnregisterContext(uint64_t handle)
 
 void StartWorkers(Context& ctx)
 {
-    const uint32_t workerCount = ResolveWorkerCount(ctx.Config);
-    ctx.StopWorkersFlag = false;
+    GoapNativeConfig cfgCopy{};
+    {
+        std::lock_guard<std::mutex> stateLock(ctx.StateMutex);
+        cfgCopy = ctx.Config;
+    }
+
+    const uint32_t workerCount = ResolveWorkerCount(cfgCopy);
+    {
+        std::lock_guard<std::mutex> requestLock(ctx.RequestMutex);
+        ctx.StopWorkersFlag = false;
+    }
     ctx.Workers.reserve(workerCount);
     for (uint32_t i = 0; i < workerCount; ++i)
     {
@@ -117,7 +139,7 @@ void StartWorkers(Context& ctx)
 void StopWorkers(Context& ctx)
 {
     {
-        std::lock_guard<std::mutex> lock(ctx.Mutex);
+        std::lock_guard<std::mutex> lock(ctx.RequestMutex);
         ctx.StopWorkersFlag = true;
     }
     ctx.RequestCv.notify_all();

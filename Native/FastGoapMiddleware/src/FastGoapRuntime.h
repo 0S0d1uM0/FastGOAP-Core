@@ -23,12 +23,16 @@ constexpr int kGraphNotUploaded = 3;
 constexpr int kQueueFull = 4;
 constexpr int kInternalError = 5;
 
+struct GraphData
+{
+    std::vector<GoapNativeActionRule> Actions;
+    std::vector<GoalRule> Goals;
+};
+
 struct Context
 {
     GoapNativeConfig Config{};
-    std::vector<GoapNativeActionRule> Actions;
-    std::vector<GoalRule> Goals;
-    bool GraphUploaded = false;
+    std::shared_ptr<const GraphData> Graph;
 
     std::queue<GoapPlanRequest> RequestQueue;
     std::queue<GoapPlanResult> ResultQueue;
@@ -38,7 +42,9 @@ struct Context
     bool StopWorkersFlag = false;
 
     std::string LastError;
-    std::mutex Mutex;
+    std::mutex RequestMutex;
+    std::mutex ResultMutex;
+    std::mutex StateMutex;
 };
 
 Context* GetContext(uint64_t handle);

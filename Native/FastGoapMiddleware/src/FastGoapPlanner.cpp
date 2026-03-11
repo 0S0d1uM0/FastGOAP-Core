@@ -57,6 +57,138 @@ void SetResultAction(GoapPlanResult& r, int index, uint16_t value)
     r.*kFields[index] = value;
 }
 
+// A*搜索节点结构，包含状态位、G值、F值、父节点索引、导致该状态的动作索引以及开放/关闭标志
+constexpr int kMaxPlannerStates = 256;
+constexpr int kStateHashCapacity = 512;
+
+struct OpenHeapEntry
+{
+    float F = 0.0f;
+    int NodeIndex = -1;
+};
+
+// 固定容量的最小堆实现，用于管理A*搜索中的开放列表，避免动态内存分配带来的性能损失
+struct FixedMinHeap
+{
+    std::array<OpenHeapEntry, kMaxPlannerStates> Data{};
+    int Count = 0;
+
+    void Clear()
+    {
+        Count = 0;
+    }
+
+    bool Empty() const
+    {
+        return Count <= 0;
+    }
+
+    void Push(float f, int nodeIndex)
+    {
+        if (Count >= static_cast<int>(Data.size()))
+            return;
+
+        int i = Count++;
+        Data[i].F = f;
+        Data[i].NodeIndex = nodeIndex;
+
+        while (i > 0)
+        {
+            const int parent = (i - 1) / 2;
+            if (Data[parent].F <= Data[i].F)
+                break;
+            std::swap(Data[parent], Data[i]);
+            i = parent;
+        }
+    }
+
+    OpenHeapEntry PopMin()
+    {
+        OpenHeapEntry out = Data[0];
+        --Count;
+        Data[0] = Data[Count];
+
+        int i = 0;
+        for (;;)
+        {
+            const int left = i * 2 + 1;
+            const int right = left + 1;
+
+            if (left >= Count)
+                break;
+
+            int best = left;
+            if (right < Count && Data[right].F < Data[left].F)
+                best = right;
+
+            if (Data[i].F <= Data[best].F)
+                break;
+
+            std::swap(Data[i], Data[best]);
+            i = best;
+        }
+
+        return out;
+    }
+};
+
+// 固定容量的状态哈希表实现，用于快速查找A*搜索中已访问的状态，避免动态内存分配和复杂的数据结构带来的性能损失
+struct FixedStateHash
+{
+    std::array<uint64_t, kStateHashCapacity> Keys{};
+    std::array<int16_t, kStateHashCapacity> Values{};
+    std::array<uint8_t, kStateHashCapacity> Used{};
+
+    void Clear()
+    {
+        Used.fill(0);
+    }
+
+    static uint32_t Hash64(uint64_t x)
+    {
+        x ^= (x >> 30);
+        x *= 0xbf58476d1ce4e5b9ULL;
+        x ^= (x >> 27);
+        x *= 0x94d049bb133111ebULL;
+        x ^= (x >> 31);
+        return static_cast<uint32_t>(x & (kStateHashCapacity - 1));
+    }
+
+    int Find(uint64_t bits) const
+    {
+        uint32_t slot = Hash64(bits);
+        for (int probe = 0; probe < kStateHashCapacity; ++probe)
+        {
+            if (!Used[slot])
+                return -1;
+
+            if (Keys[slot] == bits)
+                return static_cast<int>(Values[slot]);
+
+            slot = (slot + 1) & (kStateHashCapacity - 1);
+        }
+
+        return -1;
+    }
+
+    void InsertOrAssign(uint64_t bits, int nodeIndex)
+    {
+        uint32_t slot = Hash64(bits);
+        for (int probe = 0; probe < kStateHashCapacity; ++probe)
+        {
+            if (!Used[slot] || Keys[slot] == bits)
+            {
+                Used[slot] = 1;
+                Keys[slot] = bits;
+                Values[slot] = static_cast<int16_t>(nodeIndex);
+                return;
+            }
+
+            slot = (slot + 1) & (kStateHashCapacity - 1);
+        }
+    }
+};
+
 } // namespace
 
 namespace fastgoap
@@ -139,23 +271,37 @@ GoapPlanResult SolveOne(
     start.Parent = -1;
     start.Action = -1;
     start.Open = true;
+    start.Closed = false;
     nodes.push_back(start);
+
+    FixedMinHeap openHeap;
+    openHeap.Clear();
+    openHeap.Push(start.F, 0);
+
+    FixedStateHash stateHash;
+    stateHash.Clear();
+    stateHash.InsertOrAssign(start.Bits, 0);
 
     int goalIdx = IsGoalState(start.Bits, goal->RequireTrueBits, goal->RequireFalseBits) ? 0 : -1;
 
-    // 为了可预测的开销，直接线性扫描 open 集合而不引入更重的数据结构，后面再考虑增加一个优先队列来优化
     for (int expansion = 0; expansion < maxExpansions; ++expansion)
     {
         int current = -1;
-        float bestF = std::numeric_limits<float>::max();
-        for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+        while (!openHeap.Empty())
         {
-            if (!nodes[i].Open) continue;
-            if (nodes[i].F < bestF)
-            {
-                bestF = nodes[i].F;
-                current = i;
-            }
+            const OpenHeapEntry top = openHeap.PopMin();
+            if (top.NodeIndex < 0 || top.NodeIndex >= static_cast<int>(nodes.size()))
+                continue;
+
+            const PlannerNode& candidate = nodes[top.NodeIndex];
+            if (!candidate.Open)
+                continue;
+
+            if (top.F > candidate.F)
+                continue;
+
+            current = top.NodeIndex;
+            break;
         }
 
         if (current < 0)
@@ -186,15 +332,7 @@ GoapPlanResult SolveOne(
             const uint64_t nextBits = ApplyEffects(nodes[current].Bits, action);
             const float tentativeG = nodes[current].G + std::max(0.01f, action.BaseCost);
 
-            int existing = -1;
-            for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
-            {
-                if (nodes[i].Bits == nextBits)
-                {
-                    existing = i;
-                    break;
-                }
-            }
+            const int existing = stateHash.Find(nextBits);
 
             if (existing < 0)
             {
@@ -210,6 +348,9 @@ GoapPlanResult SolveOne(
                 n.Open = true;
                 n.Closed = false;
                 nodes.push_back(n);
+                const int newIndex = static_cast<int>(nodes.size()) - 1;
+                stateHash.InsertOrAssign(nextBits, newIndex);
+                openHeap.Push(n.F, newIndex);
             }
             else if (tentativeG < nodes[existing].G)
             {
@@ -219,6 +360,7 @@ GoapPlanResult SolveOne(
                 nodes[existing].Action = static_cast<int16_t>(action.ActionId);
                 nodes[existing].Open = true;
                 nodes[existing].Closed = false;
+                openHeap.Push(nodes[existing].F, existing);
             }
         }
     }

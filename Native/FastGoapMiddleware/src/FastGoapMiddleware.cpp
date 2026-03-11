@@ -16,7 +16,6 @@ FASTGOAP_API int FASTGOAP_CALL Goap_CreateContext(const GoapNativeConfig* config
     // 自动指针管理Context生命周期
     auto ctx = std::make_unique<Context>();
     ctx->Config = *config;
-    ctx->GraphUploaded = false;
     ctx->LastError.clear();
 
     if (ctx->Config.MaxQueuedRequests == 0)
@@ -64,26 +63,27 @@ FASTGOAP_API int FASTGOAP_CALL Goap_UploadGraph(
     if (header->Version != 1 || header->WorldBitWidth != 64)
         return fastgoap::kInvalidArg;
 
-    std::lock_guard<std::mutex> lock(ctx->Mutex);
-
     try
     {
-        ctx->Actions.assign(actions, actions + actionCount);
-        ctx->Goals.clear();
-        ctx->Goals.reserve(static_cast<size_t>(goalCount));
+        auto graph = std::make_shared<fastgoap::GraphData>();
+        graph->Actions.assign(actions, actions + actionCount);
+        graph->Goals.reserve(static_cast<size_t>(goalCount));
         for (int i = 0; i < goalCount; ++i)
         {
             fastgoap::GoalRule g;
             g.GoalId = goals[i].GoalId;
             g.RequireTrueBits = goals[i].RequireTrueBits;
             g.RequireFalseBits = goals[i].RequireFalseBits;
-            ctx->Goals.push_back(g);
+            graph->Goals.push_back(g);
         }
-        ctx->GraphUploaded = true;
+
+        std::lock_guard<std::mutex> stateLock(ctx->StateMutex);
+        ctx->Graph = graph;
         ctx->LastError.clear();
     }
     catch (...)
     {
+        std::lock_guard<std::mutex> stateLock(ctx->StateMutex);
         ctx->LastError = "UploadGraph allocation failed";
         return fastgoap::kInternalError;
     }
@@ -101,34 +101,45 @@ FASTGOAP_API int FASTGOAP_CALL Goap_SubmitRequestsV1(uint64_t context, const Goa
     if (requests == nullptr || count < 0)
         return fastgoap::kInvalidArg;
 
-    std::lock_guard<std::mutex> lock(ctx->Mutex);
-
-    if (!ctx->GraphUploaded)
     {
-        ctx->LastError = "Graph not uploaded";
-        return fastgoap::kGraphNotUploaded;
-    }
-
-    const size_t capacity = static_cast<size_t>(std::max<uint32_t>(1, ctx->Config.MaxQueuedRequests));
-    const size_t pending = ctx->RequestQueue.size() + ctx->ResultQueue.size();
-    if (pending + static_cast<size_t>(count) > capacity)
-    {
-        ctx->LastError = "Queue full";
-        return fastgoap::kQueueFull;
-    }
-
-    try
-    {
-        for (int i = 0; i < count; ++i)
+        std::lock_guard<std::mutex> stateLock(ctx->StateMutex);
+        if (!ctx->Graph)
         {
-            ctx->RequestQueue.push(requests[i]);
+            ctx->LastError = "Graph not uploaded";
+            return fastgoap::kGraphNotUploaded;
         }
-        ctx->LastError.clear();
     }
-    catch (...)
+
     {
-        ctx->LastError = "Submit processing failed";
-        return fastgoap::kInternalError;
+        std::scoped_lock<std::mutex, std::mutex> lock(ctx->RequestMutex, ctx->ResultMutex);
+
+        const size_t capacity = static_cast<size_t>(std::max<uint32_t>(1, ctx->Config.MaxQueuedRequests));
+        const size_t pending = ctx->RequestQueue.size() + ctx->ResultQueue.size();
+        if (pending + static_cast<size_t>(count) > capacity)
+        {
+            std::lock_guard<std::mutex> stateLock(ctx->StateMutex);
+            ctx->LastError = "Queue full";
+            return fastgoap::kQueueFull;
+        }
+
+        try
+        {
+            for (int i = 0; i < count; ++i)
+            {
+                ctx->RequestQueue.push(requests[i]);
+            }
+        }
+        catch (...)
+        {
+            std::lock_guard<std::mutex> stateLock(ctx->StateMutex);
+            ctx->LastError = "Submit processing failed";
+            return fastgoap::kInternalError;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> stateLock(ctx->StateMutex);
+        ctx->LastError.clear();
     }
 
     ctx->RequestCv.notify_all();
@@ -145,7 +156,7 @@ FASTGOAP_API int FASTGOAP_CALL Goap_PollResultsV1(uint64_t context, GoapPlanResu
     if (results == nullptr || maxCount < 0)
         return fastgoap::kInvalidArg;
 
-    std::lock_guard<std::mutex> lock(ctx->Mutex);
+    std::lock_guard<std::mutex> lock(ctx->ResultMutex);
 
     int written = 0;
     while (written < maxCount && !ctx->ResultQueue.empty())
@@ -165,7 +176,7 @@ FASTGOAP_API const char* FASTGOAP_CALL Goap_GetLastError(uint64_t context)
     if (ctx == nullptr)
         return "Invalid context";
 
-    std::lock_guard<std::mutex> lock(ctx->Mutex);
+    std::lock_guard<std::mutex> lock(ctx->StateMutex);
     return ctx->LastError.c_str();
 }
 

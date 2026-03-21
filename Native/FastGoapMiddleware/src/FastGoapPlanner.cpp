@@ -9,7 +9,8 @@ namespace
 {
 
 // 神奇的C++20内置函数，能在常数时间内计算出一个64位整数中有多少位是1，效率远超传统的循环计数方法
-int CountBits(uint64_t bits) {
+int CountBits(uint64_t bits)
+{
     return std::popcount(bits); 
 }
 
